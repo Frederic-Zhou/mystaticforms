@@ -1,0 +1,10 @@
+{
+    "Port": "3001",
+    "SMTPHost": "smtp.demo.com",
+    "SMTPPort": "25",
+    "Account": "your@demo.net",
+    "Password": "demo123",
+    "EmailName": "Static Forms",
+    "ToAddress": "your@demo.com",
+    "Path": ""
+}

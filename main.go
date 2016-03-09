@@ -2,8 +2,10 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"html/template"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"net/smtp"
@@ -16,25 +18,9 @@ import (
 	_ "github.com/lib/pq"
 )
 
-const (
-	//Port web服务器端口号
-	Port = "3001"
-	//SMTPHost SMTP服务器地址
-	SMTPHost = "smtp.mxhichina.com"
-	//SMTPPort SMTP服务器端口
-	SMTPPort = "25"
-	//Account SMTP服务帐号邮箱
-	Account = "your@smtpserver.com"
-	//Password SMTP服务帐号密码
-	Password = "yoursmtppassword"
-	//EmailName 电子邮件显示名称
-	EmailName = "Static Forms"
-	//ToAddress 目标邮件地址
-	ToAddress = "zetachow@163.com"
-)
+var config Config
 
 func sendForm(w http.ResponseWriter, r *http.Request) {
-	log.Println("func sendForm running")
 	msg := "邮件发送成功"
 
 	if r.Method == "POST" {
@@ -75,7 +61,7 @@ func sendForm(w http.ResponseWriter, r *http.Request) {
 
 			if matchEmail && tmplErr == nil {
 				//发送电子邮件
-				if err := sendMail(reply, subject.String(), "", body.String(), ToAddress); err != nil {
+				if err := sendMail(reply, subject.String(), "", body.String(), config.ToAddress); err != nil {
 					msg = err.Error()
 				}
 			} else {
@@ -98,7 +84,6 @@ func sendForm(w http.ResponseWriter, r *http.Request) {
 }
 
 func test(w http.ResponseWriter, r *http.Request) {
-	log.Println("func test running")
 	html := `
     <html>
         <body>
@@ -117,11 +102,17 @@ func test(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
-	http.HandleFunc("/favicon.ico", func(w http.ResponseWriter, r *http.Request) {})
-	http.HandleFunc("/test", test) //设置访问的路由
-	http.HandleFunc("/", sendForm) //设置访问的路由
+	if b, err := ioutil.ReadFile("config.json"); err == nil {
+		if err = json.Unmarshal(b, &config); err != nil {
+			log.Fatalln("读取配置出错", err.Error())
+		}
 
-	err := http.ListenAndServe(":"+Port, nil) //设置监听的端口
+	}
+	http.HandleFunc("/favicon.ico", func(w http.ResponseWriter, r *http.Request) {})
+	http.HandleFunc("/test", test)             //设置访问的路由
+	http.HandleFunc("/"+config.Path, sendForm) //设置访问的路由
+
+	err := http.ListenAndServe(":"+config.Port, nil) //设置监听的端口
 	if err != nil {
 		log.Fatal("ListenAndServe: ", err)
 	}
@@ -129,12 +120,24 @@ func main() {
 
 func sendMail(reply string, subject string, text string, html string, to string) (err error) {
 	e := email.NewEmail()
-	e.From = fmt.Sprintf("%s<%s>", EmailName, Account)
+	e.From = fmt.Sprintf("%s<%s>", config.EmailName, config.Account)
 	e.To = []string{to}
 	e.Subject = subject
 	e.Text = []byte(text)
 	e.HTML = []byte(html)
 	e.Headers.Set("Reply-to", reply)
-	return e.Send(fmt.Sprintf("%s:%s", SMTPHost, SMTPPort), smtp.PlainAuth("", Account, Password, SMTPHost))
+	return e.Send(fmt.Sprintf("%s:%s", config.SMTPHost, config.SMTPPort), smtp.PlainAuth("", config.Account, config.Password, config.SMTPHost))
 
+}
+
+//Config 配置文件对象
+type Config struct {
+	Port      string `json:"Port"`
+	SMTPHost  string `json:"SMTPHost"`
+	SMTPPort  string `json:"SMTPPort"`
+	Account   string `json:"Account"`
+	Password  string `json:"Password"`
+	EmailName string `json:"EmailName"`
+	ToAddress string `json:"ToAddress"`
+	Path      string `json:"Path"`
 }
